@@ -3,15 +3,11 @@ package notifier
 import io.ktor.client.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
-import io.ktor.http.setCookie
+import io.ktor.http.*
 import kotlinx.coroutines.runBlocking
-import notifier.api.Logger
-import notifier.api.NotificationFilter
-import notifier.api.Notifier
-import notifier.api.SessionConfiguration
-import notifier.api.SiteParser
+import notifier.api.*
 
-class Executor<T>(
+open class Executor<T>(
     private val parser: SiteParser<T>,
     private val filter: NotificationFilter<T>,
     private val notifier: Notifier<T>,
@@ -55,11 +51,17 @@ class Executor<T>(
         }
     }
 
+    protected open suspend fun getCookies(): List<Cookie> {
+        sessionConfiguration ?: return emptyList()
+
+        val response = client.get(sessionConfiguration.cookieProviderUrl)
+        return response.setCookie()
+    }
+
     private suspend fun HttpRequestBuilder.setCookie() {
         sessionConfiguration ?: return
-        val response = client.get(sessionConfiguration.cookieProviderUrl)
-        val cookie = response
-            .setCookie()
+
+        val cookie = getCookies()
             .findLast { it.name == sessionConfiguration.cookieName }
         checkNotNull(cookie) { "Specified session configuration does not specify correct session" }
         cookie(cookie.name, cookie.value)
